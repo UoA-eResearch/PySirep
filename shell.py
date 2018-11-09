@@ -2,6 +2,7 @@
 
 import platform
 import clr
+import sys
 
 arch, os = platform.architecture()
 if arch != "32bit":
@@ -15,8 +16,83 @@ deviceDiscoveryService = DeviceDiscoveryService()
 deviceDiscoveryService.Start()
 devices = list(deviceDiscoveryService.DevicesDiscovered())
 if len(devices) == 0:
-  print("No hololens found - is it attached via microUSB?")
+  print("No device found - is it attached via microUSB?")
   exit(1)
 
-uniqueId = devices[0].UniqueId
-print(uniqueId)
+d = devices[0]
+print(d.Address, d.Connection, d.Location, d.Name, d.OSVersion, d.UniqueId)
+rd = RemoteDevice(d.UniqueId)
+try:
+  print("Trying to connect as SshRecoveryUser")
+  rd.UserName = "SshRecoveryUser"
+  rd.Connect()
+except:
+  print("Trying to connect as UpdateUser")
+  rd.UserName = "UpdateUser"
+  rd.Connect()
+
+print("Connected!")
+
+deviceUpdateUtilArgs = ["firmwareversion",
+"manufacturer", "serialnumber", "buildbranch", "buildnumber", "buildtimestamp",
+"oemdevicename", "uefiname", "buildrevision", "getbatterylevel"]
+
+for arg in deviceUpdateUtilArgs:
+  resp = rd.RunCommand("C:\\Windows\\System32\\DeviceUpdateUtil.exe", arg)
+  print("{}={}".format(arg, resp))
+
+if len(sys.argv) > 1:
+  input = ' '.join(sys.argv[1:])
+  resp = rd.RunCommand(input)
+  print(resp)
+else:
+  #REPL
+  while True:
+    print("Type a command to run on the remote device")
+    input = raw_input()
+    try:
+      bits = input.split()
+      command = bits[0]
+      if len(bits) > 1:
+        args = " ".join(bits[1:])
+      else:
+        args = ""
+
+      if command == "reboottouefi":
+        resp = rd.RunCommand("C:\\Windows\\System32\\DeviceUpdateUtil.exe", command)
+        print(resp)
+        rd.Disconnect()
+        rd.Connect()
+        print("Reconnected")
+      elif command == "disconnect" or command == "dc":
+        rd.Disconnect()
+        print("Disconnected")
+      elif command == "connect" or command == "c":
+        rd.Connect()
+        print("Connected")
+      elif command == "getinstalledpackages":
+        resp = rd.RunCommand("C:\\Windows\\System32\\DeviceUpdateUtil.exe", command)
+        resp = resp.replace(";", "\n")
+        print(resp)
+      elif command == "get":
+        rd.GetFile(args, ".")
+        print("Got!")
+      elif command == "put":
+        remote = bits[1]
+        local = bits[2]
+        rd.PutFile(remote, local)
+        print("Put!")
+      elif command == "ping":
+        if rd.Ping():
+          print("Pong!")
+        else:
+          print("Thunk")
+      elif command == "quit" or command == "q" or command == "exit":
+        print("Bye!")
+        rd.Disconnect()
+        exit(0)
+      else:
+        resp = rd.RunCommand(command, args)
+        print(resp)
+    except Exception as e:
+      print(e)
