@@ -35,7 +35,8 @@ print("Connected!")
 
 deviceUpdateUtilArgs = ["firmwareversion",
 "manufacturer", "serialnumber", "buildbranch", "buildnumber", "buildtimestamp",
-"oemdevicename", "uefiname", "buildrevision", "getbatterylevel"]
+"oemdevicename", "uefiname", "buildrevision", "imageversion", "getbatterylevel", "isfirstbootcomplete", "securitystate"]
+additionalDeviceUpdateUtilArgs = ["getinstalledpackages", "reboottouefi", "reboottomassstorage", "shutdown", "settime"]
 
 for arg in deviceUpdateUtilArgs:
   resp = rd.RunCommand("C:\\Windows\\System32\\DeviceUpdateUtil.exe", arg)
@@ -49,22 +50,20 @@ def handle_command(input):
   else:
     args = ""
 
-  if command == "reboottouefi":
-    resp = rd.RunCommand("C:\\Windows\\System32\\DeviceUpdateUtil.exe", command)
-    print(resp)
-    rd.Disconnect()
-    rd.Connect()
-    print("Reconnected")
-  elif command == "disconnect" or command == "dc":
+  if command == "disconnect" or command == "dc":
     rd.Disconnect()
     print("Disconnected")
   elif command == "connect" or command == "c":
     rd.Connect()
     print("Connected")
-  elif command == "getinstalledpackages":
-    resp = rd.RunCommand("C:\\Windows\\System32\\DeviceUpdateUtil.exe", command)
+  elif command in additionalDeviceUpdateUtilArgs:
+    resp = rd.RunCommand("C:\\Windows\\System32\\DeviceUpdateUtil.exe", input)
     resp = resp.replace(";", "\n")
     print(resp)
+    if command == "shutdown":
+      print("Bye!")
+      rd.Disconnect()
+      exit(0)
   elif command == "get":
     rd.GetFile(args, ".")
     print("Got!")
@@ -93,8 +92,8 @@ else:
   #REPL
   while True:
     print("Type a command to run on the remote device")
-    input = raw_input()
+    command = input()
     try:
-      handle_command(input)
+      handle_command(command)
     except Exception as e:
       print(e)
